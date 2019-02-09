@@ -1,12 +1,12 @@
 import glob
-import os
-import pickle
 import sys
 
 import cv2
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
+
+import calibration_params
 
 
 def calibrate(files, pattern_sizes=((9, 6),)):
@@ -45,11 +45,7 @@ def main():
     files = glob.glob('camera_cal/calibration*.jpg')
     camera_matrix, dist_coeffs = calibrate(files, pattern_sizes=[(9, 6), (8, 6), (9, 5)])
 
-    output_dir = 'calibration_output'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    pickle.dump({'camera_matrix': camera_matrix, 'dist_coeffs': dist_coeffs},
-                open(output_dir + '/calibration.p', 'wb'))
+    calibration_params.save(camera_matrix, dist_coeffs)
 
     src = mpimg.imread(files[0])
     undistort = cv2.undistort(src, camera_matrix, dist_coeffs)
