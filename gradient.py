@@ -7,6 +7,7 @@ def _binary_sobel(sobel, threshold):
     sobel = np.uint8(255 / np.max(sobel) * sobel)
     binary_grad = np.zeros_like(sobel)
     binary_grad[(sobel >= threshold[0]) & (sobel <= threshold[1])] = 1
+    return binary_grad
 
 
 def abs_x_threshold(img, ksize, threshold):
