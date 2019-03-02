@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from scipy import signal
 
 import calibration_params
 import colorspace
@@ -7,7 +8,7 @@ import gradient
 from perspective import PerspectiveTransform
 
 lane_width_m = 3.7
-lane_width_p = 1026
+lane_width_p = 740
 lane_dash_length_m = 3.0
 lane_dash_length_p = 77
 
@@ -49,26 +50,35 @@ class LaneDetector:
         hist = np.clip(hist * 3, 0, np.max(hist))
 
         line_centers = self.find_centers(hist, lines_img, warped)
-        lines_img = self.highlight_features(lines_img, line_centers)
+        if line_centers is not None:
+            lines_img = self.highlight_features(lines_img, line_centers)
 
-        if self.overlay_lanes:
-            lines_img = self.perspective.unwarp(lines_img)
-            img = cv2.addWeighted(img, 0.8, lines_img, 1, 0)
-            self.draw_hist(img, hist)
-            return img
+            if self.overlay_lanes:
+                lines_img = self.perspective.unwarp(lines_img)
+                img = cv2.addWeighted(img, 0.8, lines_img, 1, 0)
+                self.draw_hist(img, hist)
+                return img
 
-        return lines_img
+            return lines_img
+        else:
+            if self.overlay_lanes:
+                return img
+            else:
+                return lines_img * 255
 
     def find_centers(self, hist, lines_img, warped):
         window = np.ones(self.window_width)
         window_width2 = self.window_width // 2
-        lines_img_width2 = lines_img.shape[1] // 2
 
         # Find initial left and right lines pixels using convolution
-        l_line = np.argmax(np.convolve(hist[:lines_img_width2], window)) - window_width2
-        r_line = lines_img_width2 + np.argmax(np.convolve(hist[lines_img_width2:], window)) - window_width2
-        # TODO: Check if there is enough distance between lines
-        # TODO: Check scenario where there is only 1 line
+        convolve_signal = np.convolve(hist, window)
+        peaks = signal.find_peaks(convolve_signal, distance=lane_width_p - self.window_width)[0] - window_width2
+        if len(peaks) != 2:
+            # TODO: Detect missing line(s) using previous frames
+            return None
+        l_line = peaks[0]
+        r_line = peaks[1]
+        # TODO: Average line centers using previous frames
         line_centers = [(l_line, r_line)]
         for n in range(1, warped.shape[0] // self.window_height):
             slice_bottom = lines_img.shape[0] - self.window_height * n
