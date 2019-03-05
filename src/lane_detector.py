@@ -51,12 +51,13 @@ class LaneDetector:
 
         line_centers = self.find_centers(hist, lines_img, warped)
         if line_centers is not None:
-            lines_img = self.highlight_features(lines_img, line_centers)
+            lines_img, line_fits = self.find_features(lines_img, line_centers)
 
             if self.overlay_lanes:
                 lines_img = self.perspective.unwarp(lines_img)
                 img = cv2.addWeighted(img, 0.8, lines_img, 1, 0)
                 self.draw_hist(img, hist)
+                self.annotate_frame(img, line_fits)
                 return img
 
             return lines_img
@@ -99,7 +100,7 @@ class LaneDetector:
             center = line_min + np.argmax(np.convolve(hist[line_min:line_max], window)) - window_width2
         return center
 
-    def highlight_features(self, img, line_centers):
+    def find_features(self, img, line_centers):
         window_width2 = self.window_width // 2
         img_r, img_g, img_b = np.zeros_like(img), np.zeros_like(img), np.zeros_like(img)
         x_l, x_r, y = [], [], []
@@ -118,19 +119,19 @@ class LaneDetector:
             v_center = tp + (bm - tp) // 2
             y.append(v_center)
 
-        if not self.draw_convolution_windows:
-            self.draw_lane(img_g, x_l, x_r, y)
+        line_fits = (np.poly1d(np.polyfit(y, x_l, 2)),
+                     np.poly1d(np.polyfit(y, x_r, 2)))
 
-        return np.dstack((img_r, img_g, img_b))
+        if not self.draw_convolution_windows:
+            self.draw_lane(img_g, line_fits)
+
+        return np.dstack((img_r, img_g, img_b)), line_fits
 
     @staticmethod
-    def draw_lane(img, x_l, x_r, y):
-        l_fit = np.polyfit(y, x_l, 2)
-        r_fit = np.polyfit(y, x_r, 2)
+    def draw_lane(img, line_fits):
         for y in range(0, img.shape[0]):
-            y2 = y ** 2
-            x_l = int(l_fit[0] * y2 + l_fit[1] * y + l_fit[2])
-            x_r = int(r_fit[0] * y2 + r_fit[1] * y + r_fit[2])
+            x_l = int(line_fits[0](y))
+            x_r = int(line_fits[1](y))
             img[y, x_l:x_r] = 90
 
     def draw_hist(self, img, hist):
@@ -138,3 +139,13 @@ class LaneDetector:
         cv2.rectangle(img, (0, img.shape[0] - self.hist_height), img.shape[1::-1], (0, 0, 0), cv2.FILLED)
         hist_fig = np.dstack((np.linspace(0, img.shape[1], img.shape[1]), hist))
         cv2.polylines(img, [hist_fig.astype(np.int32)], False, (255, 255, 255), thickness=2)
+
+    def annotate_frame(self, img, line_fits):
+        vehicle_x = (line_fits[0](img.shape[0]) + line_fits[1](img.shape[0])) / 2
+        center_distance = (img.shape[1] / 2 - vehicle_x) * self.m2p_ratio_x
+        if center_distance == 0:
+            text = 'Vehicle is centered on the lane'
+        else:
+            side = 'left' if center_distance < 0 else 'right'
+            text = 'Vehicle is %.1f m. %s of center' % (abs(center_distance), side)
+        cv2.putText(img, text, (10, 60), cv2.FONT_HERSHEY_DUPLEX, 2, (200, 200, 200), thickness=2, lineType=cv2.LINE_AA)
