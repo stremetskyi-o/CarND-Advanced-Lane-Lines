@@ -144,8 +144,21 @@ class LaneDetector:
         vehicle_x = (line_fits[0](img.shape[0]) + line_fits[1](img.shape[0])) / 2
         center_distance = (img.shape[1] / 2 - vehicle_x) * self.m2p_ratio_x
         if center_distance == 0:
-            text = 'Vehicle is centered on the lane'
+            text1 = 'Vehicle is centered on the lane'
         else:
             side = 'left' if center_distance < 0 else 'right'
-            text = 'Vehicle is %.1f m. %s of center' % (abs(center_distance), side)
-        cv2.putText(img, text, (10, 60), cv2.FONT_HERSHEY_DUPLEX, 2, (200, 200, 200), thickness=2, lineType=cv2.LINE_AA)
+            text1 = 'Vehicle is %.1f m. %s of center' % (abs(center_distance), side)
+        text2 = 'Curve radius is %.2f m.' % self.curve_radius(img.shape[0], line_fits)
+        cv2.putText(img, text1, (10, 60), cv2.FONT_HERSHEY_DUPLEX, 2, (200, 200, 200),
+                    thickness=2, lineType=cv2.LINE_AA)
+        cv2.putText(img, text2, (10, 110), cv2.FONT_HERSHEY_DUPLEX, 2, (200, 200, 200),
+                    thickness=2, lineType=cv2.LINE_AA)
+
+    def curve_radius(self, y, line_fits):
+        radius = []
+        for fit in line_fits:
+            a = fit.c[0] * self.m2p_ratio_x / self.m2p_ratio_y ** 2
+            b = fit.c[1] * self.m2p_ratio_x / self.m2p_ratio_y
+            r = (1 + (2 * a * y + b) ** 2) ** 1.5 / np.abs(2 * a)
+            radius.append(r)
+        return sum(radius) / len(radius)
