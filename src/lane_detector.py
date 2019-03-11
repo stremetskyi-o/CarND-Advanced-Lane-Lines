@@ -18,6 +18,7 @@ class LaneDetector:
     def __init__(self, window_width=100, window_height=80, draw_convolution_windows=False, hist_height=50,
                  overlay_lanes=True):
         self.window_width = window_width
+        self.window_width2 = window_width // 2
         self.window_height = window_height
         self.draw_convolution_windows = draw_convolution_windows & (not overlay_lanes)
         self.hist_height = hist_height
@@ -49,9 +50,11 @@ class LaneDetector:
         # Multiplication and clipping allows to correctly detect dashed lines
         hist = np.clip(hist * 3, 0, np.max(hist))
 
-        line_centers = self.find_centers(hist, lines_img)
+        y = np.arange(img.shape[0], -1, -self.window_height)
+
+        line_centers = self.find_centers(hist, lines_img, y)
         if line_centers is not None:
-            lines_img, line_fits = self.find_features(lines_img, line_centers)
+            lines_img, line_fits = self.find_features(lines_img, line_centers, y)
 
             if self.overlay_lanes:
                 lines_img = self.perspective.unwarp(lines_img)
@@ -67,60 +70,55 @@ class LaneDetector:
             else:
                 return lines_img * 255
 
-    def find_centers(self, hist, lines_img):
+    def find_centers(self, hist, lines_img, y):
         window = np.ones(self.window_width)
-        window_width2 = self.window_width // 2
 
         # Find initial left and right lines pixels using convolution
         convolve_signal = np.convolve(hist, window)
-        peaks = signal.find_peaks(convolve_signal, distance=lane_width_p - self.window_width)[0] - window_width2
+        peaks = signal.find_peaks(convolve_signal, distance=lane_width_p - self.window_width)[0] - self.window_width2
         if len(peaks) != 2:
             # TODO: Detect missing line(s) using previous frames
             return None
-        l_line = peaks[0]
-        r_line = peaks[1]
+        line_centers = [[peaks[i]] for i in range(len(peaks))]
         # TODO: Average line centers using previous frames
-        line_centers = [(l_line, r_line)]
-        for n in range(1, lines_img.shape[0] // self.window_height):
-            slice_bottom = lines_img.shape[0] - self.window_height * n
-            slice_hist = np.sum(lines_img[slice_bottom - self.window_height:slice_bottom], axis=0)
-            l_line = LaneDetector.find_center(slice_hist, window, l_line)
-            r_line = LaneDetector.find_center(slice_hist, window, r_line)
-            line_centers.append((l_line, r_line))
+        for i in range(1, len(y) - 1):
+            bm = y[i]
+            tp = y[i + 1]
+            slice_hist = np.sum(lines_img[tp:bm], axis=0)
+            for j in range(len(line_centers)):
+                if len(line_centers[j]) == i:
+                    center = self.find_next_center(slice_hist, window, line_centers[j][-1])
+                    if center is not None:
+                        line_centers[j].append(center)
         return line_centers
 
-    @staticmethod
-    def find_center(hist, window, center):
+    def find_next_center(self, hist, window, center):
         window_width = len(window)
-        window_width2 = window_width // 2
         line_min = max(center, 0)
         line_max = min(center + window_width, len(hist))
-        if line_max - line_min >= window_width2 // 2:
+        if line_max - line_min >= self.window_width2 // 2:
             # TODO: need to handle off the screen lines
-            center = line_min + np.argmax(np.convolve(hist[line_min:line_max], window)) - window_width2
-        return center
+            convolution_signal = np.convolve(hist[line_min:line_max], window)
+            if np.count_nonzero(convolution_signal) > 0:
+                return line_min + np.argmax(convolution_signal) - self.window_width2
+        return None
 
-    def find_features(self, img, line_centers):
-        window_width2 = self.window_width // 2
+    def find_features(self, img, line_centers, y):
         img_r, img_g, img_b = np.zeros_like(img), np.zeros_like(img), np.zeros_like(img)
-        x_l, x_r, y = [], [], []
 
-        for n, centers in enumerate(line_centers):
-            bm = img.shape[0] - self.window_height * n
-            tp = bm - self.window_height
-            for center, img_ch in zip(centers, (img_r, img_b)):
-                lt = max(center - window_width2, 0)
-                rt = min(center + window_width2, img.shape[1])
-                img_ch[tp:bm, lt:rt] = img[tp:bm, lt:rt] * 255
-                if self.draw_convolution_windows:
-                    cv2.rectangle(img_g, (lt, bm), (rt, tp), 255, thickness=2)
-            x_l.append(centers[0])
-            x_r.append(centers[1])
-            v_center = tp + (bm - tp) // 2
-            y.append(v_center)
+        for i in range(len(y) - 1):
+            bm = y[i]
+            tp = y[i + 1]
+            for centers, img_ch in zip(line_centers, (img_r, img_b)):
+                if len(centers) > i:
+                    lt = max(centers[i] - self.window_width2, 0)
+                    rt = min(centers[i] + self.window_width2, img.shape[1])
+                    img_ch[tp:bm, lt:rt] = img[tp:bm, lt:rt] * 255
+                    if self.draw_convolution_windows:
+                        cv2.rectangle(img_g, (lt, bm), (rt, tp), 255, thickness=2)
 
-        line_fits = (np.poly1d(np.polyfit(y, x_l, 2)),
-                     np.poly1d(np.polyfit(y, x_r, 2)))
+        line_fits = [np.poly1d(np.polyfit(y[:len(line_centers[i])], line_centers[i], 2))
+                     for i in range(len(line_centers))]
 
         if not self.draw_convolution_windows:
             self.draw_lane(img_g, line_fits)
