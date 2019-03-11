@@ -19,6 +19,7 @@ class LaneDetector:
                  overlay_lanes=True):
         self.window_width = window_width
         self.window_width2 = window_width // 2
+        self.window_width34 = window_width * 3 // 4
         self.window_height = window_height
         self.draw_convolution_windows = draw_convolution_windows & (not overlay_lanes)
         self.hist_height = hist_height
@@ -93,14 +94,15 @@ class LaneDetector:
         return line_centers
 
     def find_next_center(self, hist, window, center):
-        window_width = len(window)
-        line_min = max(center, 0)
-        line_max = min(center + window_width, len(hist))
+        line_min = max(center - self.window_width34, 0)
+        line_max = min(center + self.window_width34, len(hist))
         if line_max - line_min >= self.window_width2 // 2:
             # TODO: need to handle off the screen lines
-            convolution_signal = np.convolve(hist[line_min:line_max], window)
+            convolution_signal = np.convolve(hist[line_min:line_max], window, mode='same')
             if np.count_nonzero(convolution_signal) > 0:
-                return line_min + np.argmax(convolution_signal) - self.window_width2
+                peaks = signal.find_peaks(convolution_signal)[0]
+                if len(peaks) == 1:
+                    return line_min + peaks[0]
         return None
 
     def find_features(self, img, line_centers, y):
