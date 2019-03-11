@@ -49,7 +49,7 @@ class LaneDetector:
         # Multiplication and clipping allows to correctly detect dashed lines
         hist = np.clip(hist * 3, 0, np.max(hist))
 
-        line_centers = self.find_centers(hist, lines_img, warped)
+        line_centers = self.find_centers(hist, lines_img)
         if line_centers is not None:
             lines_img, line_fits = self.find_features(lines_img, line_centers)
 
@@ -67,7 +67,7 @@ class LaneDetector:
             else:
                 return lines_img * 255
 
-    def find_centers(self, hist, lines_img, warped):
+    def find_centers(self, hist, lines_img):
         window = np.ones(self.window_width)
         window_width2 = self.window_width // 2
 
@@ -81,7 +81,7 @@ class LaneDetector:
         r_line = peaks[1]
         # TODO: Average line centers using previous frames
         line_centers = [(l_line, r_line)]
-        for n in range(1, warped.shape[0] // self.window_height):
+        for n in range(1, lines_img.shape[0] // self.window_height):
             slice_bottom = lines_img.shape[0] - self.window_height * n
             slice_hist = np.sum(lines_img[slice_bottom - self.window_height:slice_bottom], axis=0)
             l_line = LaneDetector.find_center(slice_hist, window, l_line)
