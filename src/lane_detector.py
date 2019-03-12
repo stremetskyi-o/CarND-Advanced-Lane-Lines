@@ -1,3 +1,5 @@
+from collections import deque
+
 import cv2
 import numpy as np
 from scipy import signal
@@ -13,10 +15,17 @@ lane_dash_length_m = 3.0
 lane_dash_length_p = 77
 
 
+class FrameData:
+
+    def __init__(self, line_centers, line_fits):
+        self.line_centers = line_centers
+        self.line_fits = line_fits
+
+
 class LaneDetector:
 
     def __init__(self, window_width=100, window_height=80, draw_convolution_windows=False, hist_height=50,
-                 overlay_lanes=True):
+                 overlay_lanes=True, history_size=5):
         self.window_width = window_width
         self.window_width2 = window_width // 2
         self.window_width34 = window_width * 3 // 4
@@ -25,6 +34,7 @@ class LaneDetector:
         self.hist_height = hist_height
         self.overlay_lanes = overlay_lanes
 
+        self.frames = deque(maxlen=history_size)
         self.calibration_params = calibration_params.load()
         self.perspective = PerspectiveTransform()
 
@@ -56,6 +66,7 @@ class LaneDetector:
         line_centers = self.find_centers(hist, lines_img, y)
         if line_centers is not None:
             lines_img, line_fits = self.find_features(lines_img, line_centers, y)
+            self.frames.append(FrameData(line_centers, line_fits))
 
             if self.overlay_lanes:
                 lines_img = self.perspective.unwarp(lines_img)
@@ -66,6 +77,8 @@ class LaneDetector:
 
             return lines_img
         else:
+            if len(self.frames) > 0:
+                self.frames.popleft()
             if self.overlay_lanes:
                 return img
             else:
