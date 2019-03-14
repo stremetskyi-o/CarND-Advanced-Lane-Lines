@@ -36,6 +36,12 @@ class FrameData:
             return int(linear_fit(len(old)))
         return sum(old) // len(old)
 
+    @staticmethod
+    def avg_next_line_fit(old, new):
+        if len(old) == 0:
+            return new
+        return np.average(np.row_stack((old, new)), axis=0)
+
 
 class LaneDetector:
 
@@ -155,8 +161,10 @@ class LaneDetector:
                     if self.draw_convolution_windows:
                         cv2.rectangle(img_g, (lt, bm), (rt, tp), 255, thickness=2)
 
-        line_fits = [np.poly1d(np.polyfit(y[:len(line_centers[i])], line_centers[i], 2))
-                     for i in range(len(line_centers))]
+        line_fits = [
+            np.poly1d(FrameData.avg_next_line_fit(self.get_prev_line_fits(i),
+                                                  np.polyfit(y[:len(line_centers[i])], line_centers[i], 2)))
+            for i in range(len(line_centers))]
 
         if not self.draw_convolution_windows:
             self.draw_lane(img_g, line_fits)
@@ -195,3 +203,6 @@ class LaneDetector:
 
     def get_prev_line_centers(self, idx):
         return list(map(itemgetter(0), map(itemgetter(idx), map(attrgetter('line_centers'), self.frames))))
+
+    def get_prev_line_fits(self, idx):
+        return list(map(attrgetter('c'), map(itemgetter(idx), map(attrgetter('line_fits'), self.frames))))
