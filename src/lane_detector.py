@@ -65,17 +65,19 @@ class LaneDetector:
     def process_image(self, img):
         # Prepare image
         img = cv2.undistort(img, *self.calibration_params)
-        warped = self.perspective.warp(img)
 
         # Separate channels
-        rgb_r = colorspace.rgb_channels(warped)[0]
-        hsl_s = colorspace.hsl_channels(warped)[1]
+        rgb_r = colorspace.rgb_channels(img)[0]
+        hsl_s = colorspace.hsl_channels(img)[1]
 
         # Calculate and combine gradients
         r_x = gradient.abs_x(rgb_r, 9, (40, 170))
         s_x = gradient.abs_x(hsl_s, 9, (25, 220))
         lines_img = np.zeros_like(r_x)
         lines_img[(r_x == 1) | (s_x == 1)] = 1
+
+        # Warp image to aerial view
+        lines_img = self.perspective.warp(lines_img)
 
         y = np.arange(img.shape[0], -1, -self.window_height)
         window = np.ones(self.window_width)
