@@ -11,7 +11,7 @@ import gradient
 from perspective import PerspectiveTransform
 
 lane_width_m = 3.7
-lane_width_p = 740
+lane_width_p = 660
 lane_dash_length_m = 3.0
 lane_dash_length_p = 77
 
