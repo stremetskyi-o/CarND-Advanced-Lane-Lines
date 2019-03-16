@@ -1,4 +1,5 @@
 import glob
+import os
 import sys
 
 import cv2
@@ -47,14 +48,19 @@ def main():
 
     calibration_params.save(camera_matrix, dist_coeffs)
 
-    src = mpimg.imread(files[0])
-    undistort = cv2.undistort(src, camera_matrix, dist_coeffs)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
-    ax1.imshow(src)
-    ax1.set_title('Original image')
-    ax2.imshow(undistort)
-    ax2.set_title('Undistorted image')
-    plt.savefig('output_images/undistort_example.jpg', bbox_inches='tight')
+    output_folder = 'output_images/undistort/'
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for f in (files[0], 'test_images/test2.jpg'):
+        src = mpimg.imread(f)
+        undistort = cv2.undistort(src, camera_matrix, dist_coeffs)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+        ax1.imshow(src)
+        ax1.set_title('Original image')
+        ax2.imshow(undistort)
+        ax2.set_title('Undistorted image')
+        plt.savefig(output_folder + os.path.basename(f), bbox_inches='tight')
 
 
 if __name__ == "__main__":
