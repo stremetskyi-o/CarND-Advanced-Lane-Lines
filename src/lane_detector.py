@@ -75,7 +75,7 @@ class LaneDetector:
         rgb_r = colorspace.rgb_channels(img)[0]
         hsl_s = colorspace.hsl_channels(img)[1]
         # Calculate and combine gradients
-        r_x = gradient.abs_x(rgb_r, 9, (40, 170))
+        r_x = gradient.abs_x(rgb_r, 9, (15, 170))
         s_x = gradient.abs_x(hsl_s, 9, (25, 220))
         lines_img = np.zeros_like(r_x)
         lines_img[(r_x == 1) | (s_x == 1)] = 1
