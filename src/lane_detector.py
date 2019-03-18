@@ -142,7 +142,7 @@ class LaneDetector:
             text1 = 'Vehicle is centered on the lane'
         else:
             side = 'left' if center_distance < 0 else 'right'
-            text1 = 'Vehicle is %.1f m. %s of center' % (abs(center_distance), side)
+            text1 = 'Vehicle is %.2f m. %s of center' % (abs(center_distance), side)
         text2 = 'Curve radius is %.2f m.' % self._curve_radius(img.shape[0], line_fits)
         cv2.putText(img, text1, (10, 60), cv2.FONT_HERSHEY_DUPLEX, 2, (200, 200, 200),
                     thickness=2, lineType=cv2.LINE_AA)
