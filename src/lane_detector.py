@@ -205,7 +205,7 @@ class LaneDetector:
         for fit in line_fits:
             a = fit.c[0] * self.m2p_ratio_x / self.m2p_ratio_y ** 2
             b = fit.c[1] * self.m2p_ratio_x / self.m2p_ratio_y
-            r = (1 + (2 * a * y + b) ** 2) ** 1.5 / np.abs(2 * a)
+            r = (1 + (2 * a * y * self.m2p_ratio_y + b) ** 2) ** 1.5 / np.abs(2 * a)
             radius.append(r)
         return sum(radius) / len(radius)
 
