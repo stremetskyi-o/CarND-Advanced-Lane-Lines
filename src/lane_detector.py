@@ -11,9 +11,10 @@ import gradient
 from perspective import PerspectiveTransform
 
 lane_width_m = 3.7
-lane_width_p = 660
+lane_width_p = 750
 lane_dash_length_m = 3.0
 lane_dash_length_p = 77
+min_lane_width_p = 660
 
 
 class FrameData:
@@ -179,7 +180,7 @@ class LaneDetector:
         # Find initial left and right lines pixels using convolution
         convolve_signal = np.convolve(hist, window)
         peaks = signal.find_peaks(convolve_signal,
-                                  distance=lane_width_p - self.window_width)[0] - self.window_width2
+                                  distance=min_lane_width_p - self.window_width)[0] - self.window_width2
         if len(peaks) == 2:
             return peaks
         return None
