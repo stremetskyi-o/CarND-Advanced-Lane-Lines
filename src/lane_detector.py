@@ -192,8 +192,8 @@ class LaneDetector:
             convolution_signal = np.convolve(hist[line_min:line_max], window, mode='same')
             if np.count_nonzero(convolution_signal) > 0:
                 peaks = signal.find_peaks(convolution_signal)[0]
-                if len(peaks) == 1:
-                    return line_min + peaks[0]
+                if len(peaks) is not 0:
+                    return line_min + int(np.mean(peaks))
         return None
 
     def _lane_position(self, img, line_fits):
