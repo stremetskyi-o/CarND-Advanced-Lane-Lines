@@ -19,9 +19,9 @@ min_lane_width_p = 660
 
 class LaneLine:
 
-    def __init__(self, points):
+    def __init__(self, points, line_fit):
         self.points = points
-        self.line_fit = None
+        self.line_fit = line_fit
         self.confident_fit = False
 
 
@@ -50,7 +50,7 @@ class LaneDetector:
         lane_lines = self.find_lane_lines(lines_img, history=self.frames)
 
         if lane_lines is not None:
-            lines_img = self.highlight_lane_features(lines_img, lane_lines, mode=self.draw_mode, history=self.frames)
+            lines_img = self.highlight_lane_features(lines_img, lane_lines, mode=self.draw_mode)
             self.frames.append(lane_lines)
 
             if self.overlay_result:
@@ -103,16 +103,19 @@ class LaneDetector:
             if line_centers_ref is None:
                 return None
 
-            left_pts.clear()
-            right_pts.clear()
-            for i in range(len(line_pts)):
-                line_pts[i].append((lines_img.shape[0], line_centers_ref[i]))
+            line_pts = [[(lines_img.shape[0], c)] for c in line_centers_ref]
             self._find_centers_range(lines_img, window, y[1:], line_pts, False,
                                      lambda yi, li: line_pts[li][-1][1])
 
-        return LaneLine(np.array(left_pts)), LaneLine(np.array(right_pts))
+        lane_lines = []
+        for i in range(len(line_pts)):
+            pts = np.array(line_pts[i])
+            new_fit = np.polyfit(pts[:, 0], pts[:, 1], 2)
+            avg_fit = np.poly1d(self._avg_line_fit(i, new_fit, history))
+            lane_lines.append(LaneLine(pts, avg_fit))
+        return tuple(lane_lines)
 
-    def highlight_lane_features(self, img, lane_lines, mode='lane', history=None):
+    def highlight_lane_features(self, img, lane_lines, mode='lane'):
         img_r, img_g, img_b = np.zeros_like(img), np.zeros_like(img), np.zeros_like(img)
 
         for i, lane_line, img_ch in zip(range(len(lane_lines)), lane_lines, (img_r, img_b)):
@@ -125,9 +128,6 @@ class LaneDetector:
                 img_ch[tp:bm, lt:rt] = img[tp:bm, lt:rt] * 255
                 if mode == 'conv':
                     cv2.rectangle(img_g, (lt, bm), (rt, tp), 255, thickness=2)
-
-            new_fit = np.polyfit(pts[:, 0], pts[:, 1], 2)
-            lane_line.line_fit = np.poly1d(self._avg_line_fit(i, new_fit, history))
 
         res = np.dstack((img_r, img_g, img_b))
 
