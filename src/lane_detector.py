@@ -104,7 +104,7 @@ class LaneDetector:
                 return None
 
             line_pts = [[(lines_img.shape[0], c)] for c in line_centers_ref]
-            self._find_centers_range(lines_img, window, y[1:], line_pts, False,
+            self._find_centers_range(lines_img, window, y, line_pts, False,
                                      lambda yi, li: line_pts[li][-1][1])
 
         lane_lines = []
