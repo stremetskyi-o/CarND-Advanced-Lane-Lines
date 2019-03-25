@@ -225,11 +225,6 @@ class LaneDetector:
         return sum(radius) / len(radius)
 
     @staticmethod
-    def monotonic(x):
-        dx = np.diff(x)
-        return np.all(dx <= 0) or np.all(dx >= 0)
-
-    @staticmethod
     def _avg_line_fit(idx, new, history):
         if history is None:
             return new
