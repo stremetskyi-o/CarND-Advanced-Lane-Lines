@@ -16,20 +16,20 @@ The goals/steps of this project are the following:
 
 [//]: # (Image References)
 
-[undistort1]: ./output_images/undistort/calibration1.jpg "Example of the distortion-corrected image"
-[undistort2]: ./output_images/undistort/test2.jpg "Example of the distortion-corrected road image"
-[colorspace]: ./output_images/colorspace/good_test4.jpg "Good channels that display lane lines"
-[gradient]: ./output_images/test2_2.jpg "Thresholded binary gradient image"
-[perspective]: ./output_images/perspective/dst_straight_lines1.jpg "Perspective transform result"
-[lane-lines-1]: ./output_images/test2_4.jpg "Binary image with lane lines detected and convolution windows drawn"
-[lane-lines-2]: ./output_images/test2_5.jpg "Binary image with lane lines detected and line fits drawn"
-[lane-lines-3]: ./output_images/test2_6.jpg "Binary image with lane lines detected and lane overlayed"
-[result]: ./output_images/test2_7.jpg "Final result with lane detected and charachteristics annotated"
-[challenge1]: ./output_images/challenge/1_challenge_video.mp4_snapshot_00.02_%5B2019.03.14_21.16.22%5D.jpg
+[undistort1]: ./project-writeup-img/calibration1.jpg "Example of the distortion-corrected image"
+[undistort2]: ./project-writeup-img/test2.jpg "Example of the distortion-corrected road image"
+[colorspace]: ./project-writeup-img/good_test4.jpg "Good channels that display lane lines"
+[gradient]: ./project-writeup-img/test2_2.jpg "Thresholded binary gradient image"
+[perspective]: ./project-writeup-img/dst_straight_lines1.jpg "Perspective transform result"
+[lane-lines-1]: ./project-writeup-img/test2_4.jpg "Binary image with lane lines detected and convolution windows drawn"
+[lane-lines-2]: ./project-writeup-img/test2_5.jpg "Binary image with lane lines detected and line fits drawn"
+[lane-lines-3]: ./project-writeup-img/test2_6.jpg "Binary image with lane lines detected and lane overlayed"
+[result]: ./project-writeup-img/test2_7.jpg "Final result with lane detected and charachteristics annotated"
+[challenge1]: ./project-writeup-img/1_challenge_video.mp4_snapshot_00.02_%5B2019.03.14_21.16.22%5D.jpg
  "Road image with dark lines"
-[challenge2]: ./output_images/challenge/2_challenge_video.mp4_snapshot_00.02_%5B2019.03.14_21.16.22%5D.jpg
+[challenge2]: ./project-writeup-img/2_challenge_video.mp4_snapshot_00.02_%5B2019.03.14_21.16.22%5D.jpg
  "Binary gradient with negative values on the Red channel and positive on the Blue"
-[challenge3]: ./output_images/challenge/3_challenge_video.mp4_snapshot_00.02_%5B2019.03.14_21.16.22%5D.jpg
+[challenge3]: ./project-writeup-img/3_challenge_video.mp4_snapshot_00.02_%5B2019.03.14_21.16.22%5D.jpg
  "Binary gradient with edges that lighter than surrounding"
 
 ---
