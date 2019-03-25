@@ -95,14 +95,8 @@ class LaneDetector:
 
         if history and len(history):
             prev_fits = list(map(attrgetter('line_fit'), history[-1]))
-            for yi in range(0, len(y) - 1):
-                bm = y[yi]
-                tp = y[yi + 1]
-                slice_hist = np.sum(lines_img[tp:bm], axis=0)
-                for pts, prev_fit in zip(line_pts, prev_fits):
-                    center = self._find_next_center(slice_hist, window, int(prev_fit(bm)))
-                    if center is not None:
-                        pts.append((bm, center))
+            self._find_centers_range(lines_img, window, y, line_pts, True,
+                                     lambda yi, li: int(prev_fits[li](y[yi])))
 
         if not len(left_pts) or not len(right_pts):
             line_centers_ref = self._calc_line_centers_ref(lines_img, window)
@@ -113,15 +107,8 @@ class LaneDetector:
             right_pts.clear()
             for i in range(len(line_pts)):
                 line_pts[i].append((lines_img.shape[0], line_centers_ref[i]))
-            for yi in range(1, len(y) - 1):
-                bm = y[yi]
-                tp = y[yi + 1]
-                slice_hist = np.sum(lines_img[tp:bm], axis=0)
-                for pts in line_pts:
-                    if len(pts) == yi:
-                        center = self._find_next_center(slice_hist, window, pts[-1][1])
-                        if center is not None:
-                            pts.append((bm, center))
+            self._find_centers_range(lines_img, window, y[1:], line_pts, False,
+                                     lambda yi, li: line_pts[li][-1][1])
 
         return LaneLine(np.array(left_pts)), LaneLine(np.array(right_pts))
 
@@ -200,16 +187,26 @@ class LaneDetector:
             return peaks
         return None
 
-    def _find_next_center(self, hist, window, center):
-        line_min = max(center - self.window_width34, 0)
-        line_max = min(center + self.window_width34, len(hist))
-        if line_max - line_min >= self.window_width2 // 2:
-            convolution_signal = np.convolve(hist[line_min:line_max], window, mode='same')
-            if np.count_nonzero(convolution_signal) > 0:
-                peaks = signal.find_peaks(convolution_signal)[0]
-                if len(peaks) is not 0:
-                    return line_min + int(np.mean(peaks))
-        return None
+    def _find_centers_range(self, lines_img, window, ys, line_pts, skip_allowed, prev_func):
+        for yi in range(0, len(ys) - 1):
+            bm = ys[yi]
+            tp = ys[yi + 1]
+            for li in range(len(line_pts)):
+                pts = line_pts[li]
+                if skip_allowed or len(pts) == yi:
+                    center = None
+                    prev_center = prev_func(yi, li)
+                    line_min = max(prev_center - self.window_width34, 0)
+                    line_max = min(prev_center + self.window_width34, lines_img.shape[1])
+                    if line_max - line_min >= self.window_width2 // 2:
+                        convolution_signal = np.convolve(np.sum(lines_img[tp:bm][:, line_min:line_max], axis=0), window,
+                                                         mode='same')
+                        if np.count_nonzero(convolution_signal) > 0:
+                            peaks = signal.find_peaks(convolution_signal)[0]
+                            if len(peaks) is not 0:
+                                center = line_min + int(np.mean(peaks))
+                    if center is not None:
+                        pts.append((bm, center))
 
     def _lane_position(self, img, line_fits):
         vehicle_x = (line_fits[0](img.shape[0]) + line_fits[1](img.shape[0])) / 2
