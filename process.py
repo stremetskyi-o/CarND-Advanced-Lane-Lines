@@ -34,17 +34,17 @@ if __name__ == '__main__':
             lines_img = ld.warp_perspective(lines_img)
             mpimg.imsave(nformat % 3, lines_img, cmap='gray')
 
-            line_centers = ld.find_lane_line_centers(lines_img)
-            if line_centers:
-                feature_img, _ = ld.highlight_lane_features(lines_img, line_centers, mode='conv')
+            lane_lines = ld.find_lane_lines(lines_img)
+            if lane_lines:
+                feature_img = ld.highlight_lane_features(lines_img, lane_lines, mode='conv')
                 mpimg.imsave(nformat % 4, feature_img)
 
-                feature_img, _ = ld.highlight_lane_features(lines_img, line_centers, mode='fit')
+                feature_img = ld.highlight_lane_features(lines_img, lane_lines, mode='fit')
                 mpimg.imsave(nformat % 5, feature_img)
 
-                feature_img, line_fits = ld.highlight_lane_features(lines_img, line_centers, mode='lane')
+                feature_img = ld.highlight_lane_features(lines_img, lane_lines, mode='lane')
                 mpimg.imsave(nformat % 6, feature_img)
 
                 img = ld.unwarp_overlay(img, feature_img)
-                ld.annotate(img, line_fits)
+                ld.annotate(img, lane_lines)
                 mpimg.imsave(nformat % 7, img)

@@ -17,11 +17,12 @@ lane_dash_length_p = 77
 min_lane_width_p = 660
 
 
-class FrameData:
+class LaneLine:
 
-    def __init__(self, line_centers, line_fits):
-        self.line_centers = line_centers
-        self.line_fits = line_fits
+    def __init__(self, points):
+        self.points = points
+        self.line_fit = None
+        self.confident_fit = False
 
 
 class LaneDetector:
@@ -46,16 +47,15 @@ class LaneDetector:
         lines_img = self.binary_gradient(img)
         lines_img = self.warp_perspective(lines_img)
 
-        line_centers = self.find_lane_line_centers(lines_img, history=self.frames)
+        lane_lines = self.find_lane_lines(lines_img, history=self.frames)
 
-        if line_centers is not None:
-            lines_img, line_fits = self.highlight_lane_features(lines_img, line_centers, mode=self.draw_mode,
-                                                                history=self.frames)
-            self.frames.append(FrameData(line_centers, line_fits))
+        if lane_lines is not None:
+            lines_img = self.highlight_lane_features(lines_img, lane_lines, mode=self.draw_mode, history=self.frames)
+            self.frames.append(lane_lines)
 
             if self.overlay_result:
                 unwarped = self.unwarp_overlay(img, lines_img)
-                self.annotate(unwarped, line_fits)
+                self.annotate(unwarped, lane_lines)
                 return unwarped
 
             return lines_img
@@ -85,59 +85,79 @@ class LaneDetector:
     def warp_perspective(self, lines_img):
         return self.perspective.warp(lines_img)
 
-    def find_lane_line_centers(self, lines_img, history=None):
+    def find_lane_lines(self, lines_img, history=None):
         window = np.ones(self.window_width)
         y = np.arange(lines_img.shape[0], -1, -self.window_height)
 
-        line_centers_ref = self._calc_line_centers_ref(lines_img, window, y, history)
-        if line_centers_ref is None:
-            return None
+        left_pts = []
+        right_pts = []
+        line_pts = (left_pts, right_pts)
 
-        line_centers = [[line_centers_ref[i]] for i in range(len(line_centers_ref))]
-        for i in range(1, len(y) - 1):
-            bm = y[i]
-            tp = y[i + 1]
-            slice_hist = np.sum(lines_img[tp:bm], axis=0)
-            for j in range(len(line_centers)):
-                if len(line_centers[j]) == i:
-                    center = self._find_next_center(slice_hist, window, line_centers[j][-1])
+        if history and len(history):
+            prev_fits = list(map(attrgetter('line_fit'), history[-1]))
+            for yi in range(0, len(y) - 1):
+                bm = y[yi]
+                tp = y[yi + 1]
+                slice_hist = np.sum(lines_img[tp:bm], axis=0)
+                for pts, prev_fit in zip(line_pts, prev_fits):
+                    center = self._find_next_center(slice_hist, window, int(prev_fit(bm)))
                     if center is not None:
-                        line_centers[j].append(center)
-        return line_centers
+                        pts.append((bm, center))
 
-    def highlight_lane_features(self, img, line_centers, mode='lane', history=None):
-        y = np.arange(img.shape[0], -1, -self.window_height)
+        if not len(left_pts) or not len(right_pts):
+            line_centers_ref = self._calc_line_centers_ref(lines_img, window)
+            if line_centers_ref is None:
+                return None
+
+            left_pts.clear()
+            right_pts.clear()
+            for i in range(len(line_pts)):
+                line_pts[i].append((lines_img.shape[0], line_centers_ref[i]))
+            for yi in range(1, len(y) - 1):
+                bm = y[yi]
+                tp = y[yi + 1]
+                slice_hist = np.sum(lines_img[tp:bm], axis=0)
+                for pts in line_pts:
+                    if len(pts) == yi:
+                        center = self._find_next_center(slice_hist, window, pts[-1][1])
+                        if center is not None:
+                            pts.append((bm, center))
+
+        return LaneLine(np.array(left_pts)), LaneLine(np.array(right_pts))
+
+    def highlight_lane_features(self, img, lane_lines, mode='lane', history=None):
         img_r, img_g, img_b = np.zeros_like(img), np.zeros_like(img), np.zeros_like(img)
 
-        for i in range(len(y) - 1):
-            bm = y[i]
-            tp = y[i + 1]
-            for centers, img_ch in zip(line_centers, (img_r, img_b)):
-                if len(centers) > i:
-                    lt = max(centers[i] - self.window_width2, 0)
-                    rt = min(centers[i] + self.window_width2, img.shape[1])
-                    img_ch[tp:bm, lt:rt] = img[tp:bm, lt:rt] * 255
-                    if mode == 'conv':
-                        cv2.rectangle(img_g, (lt, bm), (rt, tp), 255, thickness=2)
+        for i, lane_line, img_ch in zip(range(len(lane_lines)), lane_lines, (img_r, img_b)):
+            pts = lane_line.points
+            for pt in pts:
+                bm = pt[0]
+                tp = bm - self.window_height
+                lt = max(pt[1] - self.window_width2, 0)
+                rt = min(pt[1] + self.window_width2, img.shape[1])
+                img_ch[tp:bm, lt:rt] = img[tp:bm, lt:rt] * 255
+                if mode == 'conv':
+                    cv2.rectangle(img_g, (lt, bm), (rt, tp), 255, thickness=2)
 
-        line_fits = [np.poly1d(self._avg_line_fit(i, np.polyfit(y[:len(line_centers[i])], line_centers[i], 2), history))
-                     for i in range(len(line_centers))]
+            new_fit = np.polyfit(pts[:, 0], pts[:, 1], 2)
+            lane_line.line_fit = np.poly1d(self._avg_line_fit(i, new_fit, history))
 
         res = np.dstack((img_r, img_g, img_b))
 
         if mode == 'lane':
-            self._draw_lane(res, line_fits)
+            self._draw_lane(res, lane_lines)
         elif mode == 'fit':
-            self._draw_lines(res, line_fits)
+            self._draw_lines(res, lane_lines)
 
-        return res, line_fits
+        return res
 
     def unwarp_overlay(self, img, lines_img):
         lines_img = self.perspective.unwarp(lines_img)
         img = cv2.addWeighted(img, 0.8, lines_img, 1, 0)
         return img
 
-    def annotate(self, img, line_fits):
+    def annotate(self, img, lane_lines):
+        line_fits = LaneDetector._map_line_fits(lane_lines)
         center_distance = self._lane_position(img, line_fits)
         if center_distance == 0:
             text1 = 'Vehicle is centered on the lane'
@@ -151,28 +171,23 @@ class LaneDetector:
                     thickness=2, lineType=cv2.LINE_AA)
 
     @staticmethod
-    def _draw_lane(img, line_fits):
+    def _draw_lane(img, lane_lines):
+        line_fits = LaneDetector._map_line_fits(lane_lines)
         for y in range(0, img.shape[0]):
             x_l = int(line_fits[0](y))
             x_r = int(line_fits[1](y))
             img[y, x_l:x_r, 1] = 90
 
     @staticmethod
-    def _draw_lines(img, line_fits):
+    def _draw_lines(img, lane_lines):
+        line_fits = LaneDetector._map_line_fits(lane_lines)
         y = np.arange(img.shape[0])
         for fit in line_fits:
             x = fit(y)
             pts = np.column_stack((x, y)).astype(np.int32)
             cv2.polylines(img, [pts], False, (0, 255, 0), thickness=3)
 
-    def _calc_line_centers_ref(self, lines_img, window, y, history):
-        if history is not None and len(history) > 0:
-            hist = np.sum(lines_img[y[1]:y[0]], axis=0)
-            line_centers_avg = [self._find_next_center(hist, window, self._avg_line_center(i, history))
-                                for i in range(2)]
-            if all(e is not None for e in line_centers_avg):
-                return line_centers_avg
-
+    def _calc_line_centers_ref(self, lines_img, window):
         # Calculate histogram to find start of the lanes at bottom of the image
         hist = np.sum(lines_img[lines_img.shape[0] * 2 // 3:], axis=0)
         # Multiplication and clipping allows to correctly detect dashed lines
@@ -214,22 +229,16 @@ class LaneDetector:
         dx = np.diff(x)
         return np.all(dx <= 0) or np.all(dx >= 0)
 
-    def _avg_line_center(self, idx, history):
-        if history is None:
-            return None
-        old = list(map(itemgetter(0), map(itemgetter(idx), map(attrgetter('line_centers'), history))))
-        if len(old) == 0:
-            return None
-        if len(old) > 1 and self.monotonic(old):
-            linear_fit = np.poly1d(np.polyfit(np.arange(len(old)), old, 1))
-            return int(linear_fit(len(old)))
-        return sum(old) // len(old)
-
     @staticmethod
     def _avg_line_fit(idx, new, history):
         if history is None:
             return new
-        old = list(map(attrgetter('c'), map(itemgetter(idx), map(attrgetter('line_fits'), history))))
+        old = list(map(attrgetter('c'), map(attrgetter('line_fit'), map(itemgetter(idx), history))))
         if len(old) == 0:
             return new
         return np.average(np.row_stack((old, new)), axis=0)
+
+    @staticmethod
+    def _map_line_fits(lane_lines):
+        line_fits = list(map(attrgetter('line_fit'), lane_lines))
+        return line_fits
