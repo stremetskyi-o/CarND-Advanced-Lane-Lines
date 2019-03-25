@@ -135,18 +135,18 @@ the road where straight lines appear to be parallel:
 
 #### 4. Lane line detection
 Detection of the lane lines is performed on the warped binary gradient image. The code for this step is in the
-`find_lane_line_centers()` method of `LaneDetector` in `src/lane_detector.py`. First, the algorithm search for initial
-line centers at the bottom of the image. To ensure good result, I am searching on the bottom third of the image by 
+`find_lane_lines()` method of `LaneDetector` in `src/lane_detector.py`. First, the algorithm search for initial
+line centers at the bottom of the image. To ensure a good result, I am searching on the bottom third of the image by
 taking the sum of it on the horizontal axis and also multiplying the result by 3 and clipping it to original max value.
 It is made to have similar peaks for solid and dashed lines. Then I am processing this histogram by convolving it with a
 window of 1's using `np.convolve` and `scipy.signal.find_peaks` to get the reference center points. By passing 
 *distance* parameter to `find_peaks` I am assuring that points lie at distance of at least minimal lane width. For the
 points found I continue to run convolution with a smaller window around the previous point until nothing is found or top
-of the image is reached. The result are estimated center points of the lane lines which cane be used to highlight actual
-lane lines on the image. 
+of the image is reached. Each set of points is being checked for confidence, where point windows which cover 95% of image
+height or are overlapping the left or right image edge are considered confident. Then a polynomial fit is calculated for
+each line. 
 
-Center points are then passed to `highlight_lane_features` where a polynomial fit is calculated for the points, and lane
-lines are highlighted on the image. The method can highlight features in different modes:
+The result is used in `highlight_lane_features` method to highlight different lane line features on the image:
  
 * Draw lane line windows for each center point:
 ![lane-lines-1]
@@ -169,7 +169,7 @@ converted to the world space:
 ```python
 a = fit.c[0] * self.m2p_ratio_x / self.m2p_ratio_y ** 2
 b = fit.c[1] * self.m2p_ratio_x / self.m2p_ratio_y
-r = (1 + (2 * a * y + b) ** 2) ** 1.5 / np.abs(2 * a)
+r = (1 + (2 * a * y * self.m2p_ratio_y + b) ** 2) ** 1.5 / np.abs(2 * a)
 ```
 
 #### 6. Overlay source image with detected features
@@ -185,12 +185,14 @@ highlighted features. The image is then annotated with information about vehicle
 
 It is possible to apply the same techniques described in the previous section to a video stream, but for a better result
 in terms of quality and speed, I've created a queue which holds data about 5 previous frames, which is enough for
-the speed of the vehicle in the project videos. The data are: calculated centers of the lane lines and their fits. 
-Previous line centers are used to estimate starting locations of the new ones in the method `_avg_line_center` of
-`LaneDetector`. The history is checked if it is monotonic, if it is, then a linear extrapolation is applied to get the
-new value, averaging is used otherwise. After calculating fit for the new frame, it gets averaged with the fits from the
-history (in `_avg_line_fit` method of `LaneDetector`) making they less wobbly and more robust to the noise and false
-detections.
+the speed of the vehicle in the project videos. The history queue holds pairs of `LaneLine` objects which holds detected
+line points, calculated line fits and confidence flag indicating that the line fit can be reused. If the lane line was
+considered confident in the previous frame, it could be used in the next frame for narrowing search area for the new 
+line points. This approach allows skipping the step for finding line reference points at the bottom of the image as well
+as providing a way to detect lines with long gaps between dashes or other unevenness fully, by following the previous
+lane line. If the result looks misgiving (less than 68% of points detected) lane lines are detected using initial
+algorithm. After calculating fit for the new frame, it gets averaged with the fits from the history (in `_avg_line_fit`
+method of `LaneDetector`) making the resulting lines less wobbly and more robust to the noise and false detections.
 
 Final video output can be found [here](./output_images/video/project_video.mp4).
 
@@ -200,7 +202,7 @@ Final video output can be found [here](./output_images/video/project_video.mp4).
 
 The algorithm only covers some essential line detection and averaging along video sequence but successfully displays
 which features can be derived from the video alone. Improved image processing together with some info about vehicle
-speed and data from wheel angle sensor it is possible to receive a much better result. Some problems that algorithm may
+speed and data from wheel angle sensor is capable of producing a much better result. Some problems that algorithm may
 face were detected from the testing on the challenge videos and some from the nature of the approach itself.
 
 One of the moments where the algorithm can fail is where there are some clear dark lines parallel to the lane, like
